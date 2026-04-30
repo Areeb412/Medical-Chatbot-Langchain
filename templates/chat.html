@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medical Chatbot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="chat-wrapper">
+    <div class="chat-header">
+      <h1>🏥 Medical Assistant</h1>
+      <p>Powered by LangChain + Pinecone + OpenAI</p>
+    </div>
+    <div id="chatbox" class="chatbox"></div>
+    <div class="input-area">
+      <input type="text" id="userInput"
+             placeholder="Ask a medical question..." autocomplete="off">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    function appendMessage(sender, text) {
+      const chatbox = document.getElementById('chatbox');
+      const div = document.createElement('div');
+      div.className = sender === 'You' ? 'msg user-msg' : 'msg bot-msg';
+      div.innerHTML = `<b>${sender}:</b> ${text}`;
+      chatbox.appendChild(div);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('userInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      appendMessage('You', msg);
+      input.value = '';
+      $.post('/get', { msg: msg }, function(response) {
+        appendMessage('Bot', response);
+      });
+    }
+
+    document.getElementById('userInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Welcome message
+    appendMessage('Bot', 'Hello! I am your medical assistant. Ask me any medical question.');
+  </script>
+</body>
+</html>
