@@ -3,51 +3,151 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Medical Chatbot</title>
+  <title>Medical Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="chat-wrapper">
-    <div class="chat-header">
-      <h1>🏥 Medical Assistant</h1>
-      <p>Powered by LangChain + Pinecone + OpenAI</p>
-    </div>
-    <div id="chatbox" class="chatbox"></div>
-    <div class="input-area">
-      <input type="text" id="userInput"
-             placeholder="Ask a medical question..." autocomplete="off">
-      <button onclick="sendMessage()">Send</button>
-    </div>
-  </div>
+  <main class="app-shell">
+    <section class="info-panel" aria-label="Assistant overview">
+      <div class="brand-mark" aria-hidden="true">
+        <span>+</span>
+      </div>
+      <p class="eyebrow">AI medical knowledge assistant</p>
+      <h1>Medical Assistant</h1>
+      <p class="intro">
+        Ask health-related questions and receive grounded responses from your indexed medical documents.
+      </p>
 
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <div class="status-grid" aria-label="System details">
+        <div>
+          <span class="status-dot"></span>
+          <strong>Retriever</strong>
+          <small>Pinecone vector search</small>
+        </div>
+        <div>
+          <span class="status-dot"></span>
+          <strong>Framework</strong>
+          <small>LangChain LCEL</small>
+        </div>
+      </div>
+
+      <p class="disclaimer">
+        This assistant is for educational support only. It does not replace advice from a licensed clinician.
+      </p>
+    </section>
+
+    <section class="chat-wrapper" aria-label="Chat">
+      <header class="chat-header">
+        <div>
+          <p class="chat-kicker">Consultation chat</p>
+          <h2>How can I help today?</h2>
+        </div>
+        <span class="availability">Online</span>
+      </header>
+
+      <div class="prompt-row" aria-label="Example prompts">
+        <button type="button" data-prompt="What are common symptoms of diabetes?">Diabetes symptoms</button>
+        <button type="button" data-prompt="How can high blood pressure be managed?">Blood pressure</button>
+        <button type="button" data-prompt="What should I know about migraines?">Migraines</button>
+      </div>
+
+      <div id="chatbox" class="chatbox" aria-live="polite"></div>
+
+      <form id="chatForm" class="input-area">
+        <label class="sr-only" for="userInput">Ask a medical question</label>
+        <input
+          type="text"
+          id="userInput"
+          name="msg"
+          placeholder="Ask a medical question..."
+          autocomplete="off"
+        >
+        <button id="sendButton" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
   <script>
-    function appendMessage(sender, text) {
-      const chatbox = document.getElementById('chatbox');
-      const div = document.createElement('div');
-      div.className = sender === 'You' ? 'msg user-msg' : 'msg bot-msg';
-      div.innerHTML = `<b>${sender}:</b> ${text}`;
-      chatbox.appendChild(div);
+    const chatbox = document.getElementById('chatbox');
+    const chatForm = document.getElementById('chatForm');
+    const input = document.getElementById('userInput');
+    const sendButton = document.getElementById('sendButton');
+
+    function appendMessage(sender, text, options = {}) {
+      const message = document.createElement('article');
+      message.className = `msg ${sender === 'You' ? 'user-msg' : 'bot-msg'}`;
+      if (options.pending) {
+        message.classList.add('pending');
+      }
+
+      const label = document.createElement('span');
+      label.className = 'msg-label';
+      label.textContent = sender;
+
+      const body = document.createElement('p');
+      body.textContent = text;
+
+      message.append(label, body);
+      chatbox.appendChild(message);
       chatbox.scrollTop = chatbox.scrollHeight;
+      return message;
     }
 
-    function sendMessage() {
-      const input = document.getElementById('userInput');
-      const msg = input.value.trim();
+    async function sendMessage(messageText) {
+      const msg = messageText.trim();
       if (!msg) return;
+
       appendMessage('You', msg);
       input.value = '';
-      $.post('/get', { msg: msg }, function(response) {
-        appendMessage('Bot', response);
-      });
+      input.focus();
+      sendButton.disabled = true;
+
+      const pendingMessage = appendMessage('Assistant', 'Reviewing your question...', { pending: true });
+
+      try {
+        const formData = new FormData();
+        formData.append('msg', msg);
+
+        const response = await fetch('/get', {
+          method: 'POST',
+          body: formData
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        const answer = contentType.includes('application/json')
+          ? (await response.json()).response
+          : await response.text();
+
+        pendingMessage.classList.remove('pending');
+        pendingMessage.querySelector('p').textContent = answer || 'I could not generate a response.';
+      } catch (error) {
+        pendingMessage.classList.remove('pending');
+        pendingMessage.classList.add('error');
+        pendingMessage.querySelector('p').textContent = 'Something went wrong. Please try again.';
+      } finally {
+        sendButton.disabled = false;
+      }
     }
 
-    document.getElementById('userInput').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') sendMessage();
+    chatForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+      sendMessage(input.value);
     });
 
-    // Welcome message
-    appendMessage('Bot', 'Hello! I am your medical assistant. Ask me any medical question.');
+    document.querySelectorAll('[data-prompt]').forEach((button) => {
+      button.addEventListener('click', () => {
+        input.value = button.dataset.prompt;
+        sendMessage(input.value);
+      });
+    });
+
+    appendMessage(
+      'Assistant',
+      'Hello. Ask me a medical question and I will answer using the knowledge base connected to this app.'
+    );
   </script>
 </body>
 </html>
